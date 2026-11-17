@@ -2,6 +2,8 @@ const express = require('express');
 const path = require('node:path');
 const { coatiApi } = require('./coati-api');
 const { createAuth } = require('./auth');
+const { readFile } = require('node:fs/promises');
+const { renderClientHtml } = require('./client-html');
 
 const resourceDirectory = path.resolve(__dirname, '../../Resource');
 const clientDirectory = path.resolve(__dirname, '../Client/dist');
@@ -25,10 +27,11 @@ function createApp({ db, authKey }) {
   app.use('/videos', express.static(resourceDirectory, { index: false, fallthrough: false }));
   app.use(express.static(clientDirectory, { index: false }));
 
-  app.get(['/', '/stav-zoo', '/stav-zoo/coati'], (req, res, next) => {
-    res.sendFile(path.join(clientDirectory, 'index.html'), (error) => {
-      if (error) next(error);
-    });
+  app.post('/Zoo/Donate', (req, res) => res.redirect('https://pay.cloudtips.ru/p/cceba1a9'));
+
+  app.get(['/', '/stav-zoo', '/stav-zoo/coati'], auth.authenticate, async (req, res) => {
+    const html = await readFile(path.join(clientDirectory, 'index.html'), 'utf8');
+    res.set('Cache-Control', 'no-store').type('html').send(renderClientHtml(html, req.user));
   });
 
   app.use((req, res) => {
