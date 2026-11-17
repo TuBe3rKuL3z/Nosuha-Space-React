@@ -21,11 +21,12 @@ test('React reads the existing text API and reflects database changes without se
     assert.equal(data.entries[0].Author, 'Зоолог Мария');
     assert.equal(data.entries[3].EventDate, '20.09.2026 10:30');
     db.prepare('UPDATE Coatis SET Name=?, Biography=?').run('Изменённое имя', 'История\nс продолжением');
-    db.prepare('UPDATE DiaryEntries SET Description=? WHERE Id=4').run('Первая строка\nВторая строка');
+    const description = `Первая строка\n${'-'.repeat(50)}\nВторая строка\nСотрудник: запись внутри описания\n`;
+    db.prepare('UPDATE DiaryEntries SET Description=? WHERE Id=4').run(description);
     const changed = await getPublicData();
     assert.equal(changed.coati.Name, 'Изменённое имя');
     assert.equal(changed.coati.Biography, 'История\nс продолжением');
-    assert.equal(changed.entries[0].Description, 'Первая строка\nВторая строка');
+    assert.equal(changed.entries[0].Description, description);
     db.exec('DELETE FROM DiaryEntries');
     assert.deepEqual((await getPublicData()).entries, []);
     db.exec('DELETE FROM Coatis');

@@ -45,7 +45,9 @@ export function parseDiary(text) {
   const normalized = text.replaceAll('\r\n', '\n');
   const header = normalized.match(/^={50}\nЖУРНАЛ НАБЛЮДЕНИЙ ЗООЛОГОВ И КИПЕРОВ \(НОСУХА Хахатуха\)\n={50}\nВсего записей в журнале: (\d+)\n\n/);
   if (!header) throw new Error('Некорректный формат журнала наблюдений.');
-  const pattern = /Запись #(\d+) от (\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})\nКатегория события: \[([^\n]*)\]\nТема:              ([\s\S]*?)\nСотрудник:         ([\s\S]*?)\nПодробности:       ([\s\S]*?)\n-{50}\n/g;
+  // A separator inside a multiline description is still part of the note.
+  // A record ends only before the next report header or the end of the report.
+  const pattern = /Запись #(\d+) от (\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})\nКатегория события: \[([^\n]*)\]\nТема:              ([\s\S]*?)\nСотрудник:         ([\s\S]*?)\nПодробности:       ([\s\S]*?)\n-{50}\n(?=Запись #\d+ от \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}\nКатегория события:|$)/g;
   const body = normalized.slice(header[0].length);
   const entries = [];
   let consumed = 0;
