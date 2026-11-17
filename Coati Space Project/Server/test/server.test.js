@@ -82,8 +82,10 @@ test('login validation, original redirects, cookie properties, logout and access
   const page = await request('/account/login?returnUrl=%22%3E%3Cscript%3E');
   assert.equal(page.status, 200);
   const html = await page.text();
-  assert.ok(html.includes('action="/account/login"'));
-  assert.ok(html.includes('&quot;&gt;&lt;script&gt;'));
+  const pageData = JSON.parse(html.match(/<script id="page-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(pageData.View, 'login');
+  assert.equal(pageData.ReturnUrl, '\"><script>');
+  assert.ok(!html.includes('\"><script>'));
   assert.equal((await request('/account/login', form({}))).status, 400);
   const invalid = await request('/account/login', form({ username: 'admin', password: 'wrong' }));
   assert.equal(invalid.status, 401);
@@ -104,8 +106,7 @@ test('login validation, original redirects, cookie properties, logout and access
   const headers = { Cookie: cookie };
   assert.equal((await request('/account/login', { headers })).headers.get('location'), '/diary');
   assert.equal((await request('/diary')).status, 401);
-  // The diary CRUD routes are intentionally implemented in stage 5.
-  assert.equal((await request('/diary', { headers })).status, 404);
+  assert.equal((await request('/diary', { headers })).status, 200);
   assert.equal((await request('/account/denied')).status, 403);
   const logout = await request('/account/logout', { headers });
   assert.equal(logout.headers.get('location'), '/stav-zoo/coati');

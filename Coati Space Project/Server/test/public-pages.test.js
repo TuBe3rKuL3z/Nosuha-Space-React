@@ -43,10 +43,10 @@ test('React reads the existing text API and reflects database changes without se
 });
 
 test('public HTML carries only the staff claims and escapes script boundaries', () => {
-  const html = '<div id="root"></div><script id="staff-user" type="application/json">null</script>';
+  const html = '<div id="root"></div><script id="staff-user" type="application/json">null</script><script id="page-data" type="application/json">{}</script>';
   const user = { Username: 'admin', FullName: '</script><script>alert(1)</script>', Role: 'Admin', Position: 'Администратор' };
   const rendered = renderClientHtml(html, user);
-  assert.equal(rendered.split('</script>').length, 2);
+  assert.equal(rendered.split('</script>').length, 3);
   assert.deepEqual(JSON.parse(rendered.match(/type="application\/json">([^<]+)</)[1]), user);
   assert.equal(renderClientHtml(html, undefined), html);
   assert.throws(() => renderClientHtml('<html></html>', user), /отсутствует/);

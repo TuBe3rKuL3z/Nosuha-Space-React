@@ -5,11 +5,6 @@ const { Router } = require('express');
 
 const cookieName = '.AspNetCore.Cookies';
 const lifetime = 8 * 60 * 60 * 1000;
-const loginTemplate = readFileSync(path.join(__dirname, 'login.html'), 'utf8');
-const deniedTemplate = readFileSync(path.join(__dirname, 'denied.html'), 'utf8');
-const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-})[character]);
 
 function loadAuthKey(filename = path.join(__dirname, '.auth-key')) {
   // Persist the encryption key, just as ASP.NET persists its data-protection keys.
@@ -19,23 +14,13 @@ function loadAuthKey(filename = path.join(__dirname, '.auth-key')) {
   return key;
 }
 
-function document(title, content) {
-  return `<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title}</title></head><body>${content}</body></html>`;
-}
-
-function sendLogin(res, status, returnUrl = '', error = '') {
-  const alert = error ? `<div class="alert alert-danger alert-dismissible fade show" role="alert"><strong>Ошибка:</strong> ${escapeHtml(error)}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>` : '';
-  res.status(status).type('html').send(document('Авторизация администратора', loginTemplate
-    .replace('{{error}}', () => alert).replace('{{returnUrl}}', () => escapeHtml(returnUrl))));
-}
-
 function localReturnUrl(value) {
   if (typeof value !== 'string') return null;
   const url = value.startsWith('~/') ? value.slice(1) : value;
   return url.startsWith('/') && !/^\/[\\/]/.test(url) && !/[\u0000-\u001f\u007f]/.test(url) ? url : null;
 }
 
-function createAuth(db, key) {
+function createAuth(db, key, sendPage) {
   if (!Buffer.isBuffer(key) || key.length !== 32) throw new Error('Не задан корректный ключ авторизации.');
   const cookieOptions = req => ({ httpOnly: true, sameSite: 'lax', secure: req.secure, path: '/' });
 
@@ -80,8 +65,11 @@ function createAuth(db, key) {
   }
 
   function requireAdmin(req, res, next) {
-    if (!req.user) return sendLogin(res, 401, req.originalUrl);
-    if (req.user.Role !== 'Admin') return res.status(403).type('html').send(document('Доступ ограничен', deniedTemplate));
+    const api = req.originalUrl.startsWith('/api/');
+    if (!req.user) return api ? res.status(401).json({ error: 'Необходима авторизация сотрудника.' })
+      : sendPage(req, res, 401, { View: 'login', ReturnUrl: req.originalUrl });
+    if (req.user.Role !== 'Admin') return api ? res.status(403).json({ error: 'Доступ ограничен.' })
+      : sendPage(req, res, 403, { View: 'denied' });
     next();
   }
 
@@ -93,23 +81,23 @@ function createAuth(db, key) {
   router.use(authenticate);
   router.get(['/', '/login'], (req, res) => {
     if (req.user) return res.redirect('/diary');
-    sendLogin(res, 200, typeof req.query.returnUrl === 'string' ? req.query.returnUrl : '');
+    return sendPage(req, res, 200, { View: 'login', ReturnUrl: typeof req.query.returnUrl === 'string' ? req.query.returnUrl : '' });
   });
   router.post(['/', '/login'], (req, res) => {
     const { username, password, returnUrl } = req.body || {};
     const destination = typeof returnUrl === 'string' ? returnUrl : '';
     if (typeof username !== 'string' || typeof password !== 'string' || !username.trim() || !password.trim()) {
-      return sendLogin(res, 400, destination, 'Пожалуйста, введите логин и пароль сотрудника.');
+      return sendPage(req, res, 400, { View: 'login', ReturnUrl: destination, ErrorMessage: 'Пожалуйста, введите логин и пароль сотрудника.' });
     }
     const user = db.prepare('SELECT * FROM StaffUsers WHERE Username = ? AND Password = ? LIMIT 1').get(username, password);
     if (!user || user.Role !== 'Admin') {
-      return sendLogin(res, 401, destination, 'Неверный логин или пароль администратора.');
+      return sendPage(req, res, 401, { View: 'login', ReturnUrl: destination, ErrorMessage: 'Неверный логин или пароль администратора.' });
     }
     const { Username, FullName, Role, Position } = user;
     issueCookie(req, res, { Username, FullName, Role, Position });
     res.redirect(localReturnUrl(destination) || '/diary');
   });
-  router.get('/denied', (req, res) => res.status(403).type('html').send(document('Доступ ограничен', deniedTemplate)));
+  router.get('/denied', (req, res) => sendPage(req, res, 403, { View: 'denied' }));
 
   return { router, authenticate, requireAdmin };
 }
