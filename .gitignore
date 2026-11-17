@@ -1,4 +1,6 @@
 # Logs
+Coati Space Project/Server/coati.db*
+Coati Space Project/Server/.auth-key
 logs
 *.log
 npm-debug.log*

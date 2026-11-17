@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: Object.fromEntries(
-      ['/api', '/images', '/videos'].map((path) => [path, 'http://localhost:3000']),
+      ['/api', '/account', '/images', '/videos'].map((path) => [path, 'http://localhost:3000']),
     ),
   },
 });

@@ -1,16 +1,21 @@
 const express = require('express');
 const path = require('node:path');
+const { coatiApi } = require('./coati-api');
+const { createAuth } = require('./auth');
 
 const resourceDirectory = path.resolve(__dirname, '../../Resource');
 const clientDirectory = path.resolve(__dirname, '../Client/dist');
 
-function createApp() {
+function createApp({ db, authKey }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 
-  // API handlers are registered here before the API 404 handler in stage 3.
+  const auth = createAuth(db, authKey);
+  app.use('/account', auth.router);
+  app.use('/diary', auth.authenticate, auth.requireAdmin);
+  app.use('/api/coati', coatiApi(db));
   app.use('/api', (req, res) => {
     res.status(404).json({ error: 'Маршрут API не найден.' });
   });
@@ -36,6 +41,7 @@ function createApp() {
     const status = error.status >= 400 && error.status < 600 ? error.status : 500;
     const message = error.type === 'entity.parse.failed'
       ? 'Некорректный JSON в теле запроса.'
+      : status === 401 ? error.message
       : status === 404 ? 'Файл не найден.' : 'Внутренняя ошибка сервера.';
     if (req.path === '/api' || req.path.startsWith('/api/')) {
       return res.status(status).json({ error: message });
